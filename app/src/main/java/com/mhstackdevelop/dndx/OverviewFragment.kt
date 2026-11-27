@@ -19,11 +19,30 @@ import android.view.ViewGroup
 import android.widget.TextView
 import android.widget.Toast
 import androidx.fragment.app.Fragment
+import androidx.activity.result.contract.ActivityResultContracts
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.button.MaterialButton
 import rikka.shizuku.Shizuku
 
 class OverviewFragment : Fragment() {
+    private val callRoleLauncher =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+            val roleGranted = isCallScreeningRoleGranted()
+            toast(
+                if (roleGranted) "Call screening enabled. DNDx can now reject non-exempt calls while active."
+                else "Call screening role was not granted; calls will not be rejected by DNDx."
+            )
+            view?.let { refresh(it) }
+        }
+
+    private val shizukuBinderReceivedListener = Shizuku.OnBinderReceivedListener {
+        view?.let { refresh(it) }
+    }
+
+    private val shizukuBinderDeadListener = Shizuku.OnBinderDeadListener {
+        view?.let { refresh(it) }
+    }
+
     private val shizukuPermissionListener =
         Shizuku.OnRequestPermissionResultListener { requestCode, grantResult ->
             if (requestCode == REQUEST_SHIZUKU_PERMISSION) {
@@ -63,6 +82,19 @@ class OverviewFragment : Fragment() {
         Shizuku.addRequestPermissionResultListener(shizukuPermissionListener)
     }
 
+    override fun onStart() {
+        super.onStart()
+        Shizuku.addBinderReceivedListenerSticky(shizukuBinderReceivedListener)
+        Shizuku.addBinderDeadListener(shizukuBinderDeadListener)
+        view?.let { refresh(it) }
+    }
+
+    override fun onStop() {
+        Shizuku.removeBinderReceivedListener(shizukuBinderReceivedListener)
+        Shizuku.removeBinderDeadListener(shizukuBinderDeadListener)
+        super.onStop()
+    }
+
     override fun onDestroyView() {
         Shizuku.removeRequestPermissionResultListener(shizukuPermissionListener)
         val args = shizukuServiceArgs
@@ -85,9 +117,9 @@ class OverviewFragment : Fragment() {
         val prefs = context.getSharedPreferences(MainActivity.PREFS, 0)
         val notificationManager = context.getSystemService(NotificationManager::class.java)
         val active = prefs.getBoolean(MainActivity.KEY_ACTIVE, false)
-        val roleGranted = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
-            context.getSystemService(RoleManager::class.java)
-                .isRoleHeld(RoleManager.ROLE_CALL_SCREENING)
+        val roleAvailable = isCallScreeningRoleAvailable()
+        val roleGranted = isCallScreeningRoleGranted()
+        val screenNonExempt = prefs.getBoolean(MainActivity.KEY_SCREEN_NON_EXEMPT, true)
         val policyGranted = notificationManager.isNotificationPolicyAccessGranted
         val shizukuRunning = Shizuku.pingBinder()
         val notificationsGranted = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
@@ -102,18 +134,37 @@ class OverviewFragment : Fragment() {
             policyGranted -> "DND policy access is ready. Enable DND when you want some quiet."
             else -> "Grant DND policy access to let DNDx control Priority mode."
         }
+        view.findViewById<TextView>(R.id.call_screening_status).text = when {
+            Build.VERSION.SDK_INT < Build.VERSION_CODES.Q ->
+                "Call rejection requires Android 10 or later. DND can still silence calls."
+            !roleAvailable ->
+                "This device does not offer Android's call-screening role. DND can still silence calls."
+            !roleGranted ->
+                "Calls are not being rejected yet. Grant the call-screening role below; DND access alone only controls silencing."
+            !screenNonExempt ->
+                "Call-screening role granted, but rejection is turned off in Rules."
+            else ->
+                "Call screening is ready. Non-exempt incoming calls are rejected only while DNDx is on."
+        }
         view.findViewById<MaterialButton>(R.id.button_toggle).text =
             if (active) "Turn off DND" else "Enable DND"
 
         view.findViewById<MaterialButton>(R.id.button_call_role).text =
-            if (roleGranted) "Call role: Granted" else "Grant call-screening role"
+            when {
+                !roleAvailable -> "Call blocking unavailable"
+                roleGranted -> "Call-screening role: Granted"
+                else -> "Grant role to block calls"
+            }
+        view.findViewById<MaterialButton>(R.id.button_call_role).isEnabled = roleAvailable
         view.findViewById<MaterialButton>(R.id.button_policy).text =
             if (policyGranted) "DND access: Granted" else "Grant DND policy access"
         view.findViewById<MaterialButton>(R.id.button_shizuku).apply {
             text = when {
                 policyGranted -> "DND access granted"
-                shizukuRunning -> "Grant DND access with Shizuku"
-                else -> "Shizuku not running"
+                shizukuRunning -> "Request DND access from Shizuku"
+                context.packageManager.getLaunchIntentForPackage(SHIZUKU_PACKAGE) != null ->
+                    "Open Shizuku to start service"
+                else -> "Install Shizuku to grant access"
             }
             isEnabled = !policyGranted
         }
@@ -165,7 +216,29 @@ class OverviewFragment : Fragment() {
 
     private fun confirmShizukuGrant() {
         if (!Shizuku.pingBinder()) {
-            toast("Start Shizuku, then return here to grant DND access.")
+            val managerIntent = requireContext().packageManager
+                .getLaunchIntentForPackage(SHIZUKU_PACKAGE)
+            if (managerIntent != null) {
+                startActivity(managerIntent)
+                toast("Start Shizuku, then return here. DNDx will request Shizuku permission.")
+            } else {
+                MaterialAlertDialogBuilder(requireContext())
+                    .setTitle("Shizuku is not installed")
+                    .setMessage(
+                        "Install Shizuku and start its service first. DNDx will then request " +
+                            "Shizuku permission before granting DND access."
+                    )
+                    .setNegativeButton("Cancel", null)
+                    .setPositiveButton("Get Shizuku") { _, _ ->
+                        startActivity(
+                            Intent(
+                                Intent.ACTION_VIEW,
+                                Uri.parse("https://shizuku.rikka.app/download/")
+                            )
+                        )
+                    }
+                    .show()
+            }
             return
         }
         MaterialAlertDialogBuilder(requireContext())
@@ -179,14 +252,41 @@ class OverviewFragment : Fragment() {
                 when {
                     !Shizuku.pingBinder() ->
                         toast("Shizuku is no longer available. Start it and try again.")
-                    Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED ->
-                        grantPolicyAccessWithShizuku()
-                    Shizuku.shouldShowRequestPermissionRationale() ->
-                        toast("Allow DNDx in the Shizuku app, then try again.")
-                    else -> Shizuku.requestPermission(REQUEST_SHIZUKU_PERMISSION)
+                    Shizuku.isPreV11() ->
+                        toast("This Shizuku service version is not supported. Update Shizuku.")
+                    else -> requestShizukuPermission()
                 }
             }
             .show()
+    }
+
+    private fun requestShizukuPermission() {
+        try {
+            when {
+                Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED ->
+                    grantPolicyAccessWithShizuku()
+                Shizuku.shouldShowRequestPermissionRationale() ->
+                    MaterialAlertDialogBuilder(requireContext())
+                        .setTitle("Shizuku permission needed")
+                        .setMessage(
+                            "DNDx needs Shizuku permission to grant Android DND policy access. " +
+                                "Approve DNDx in Shizuku, then try again."
+                        )
+                        .setPositiveButton("Open Shizuku") { _, _ ->
+                            requireContext().packageManager
+                                .getLaunchIntentForPackage(SHIZUKU_PACKAGE)
+                                ?.let(::startActivity)
+                        }
+                        .setNegativeButton("Cancel", null)
+                        .show()
+                else -> {
+                    Shizuku.requestPermission(REQUEST_SHIZUKU_PERMISSION)
+                    toast("Approve the DNDx permission request in Shizuku.")
+                }
+            }
+        } catch (_: IllegalStateException) {
+            toast("Shizuku disconnected. Start its service and try again.")
+        }
     }
 
     private fun grantPolicyAccessWithShizuku() {
@@ -249,13 +349,24 @@ class OverviewFragment : Fragment() {
     }
 
     private fun requestCallRole() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return
-        val roleManager = requireContext().getSystemService(RoleManager::class.java)
-        if (roleManager.isRoleAvailable(RoleManager.ROLE_CALL_SCREENING)) {
-            startActivity(roleManager.createRequestRoleIntent(RoleManager.ROLE_CALL_SCREENING))
-        } else {
-            toast("The call-screening role is unavailable on this device.")
+        if (!isCallScreeningRoleAvailable()) {
+            toast("Call rejection requires Android 10 or later and device support.")
+            return
         }
+        val roleManager = requireContext().getSystemService(RoleManager::class.java)
+        callRoleLauncher.launch(roleManager.createRequestRoleIntent(RoleManager.ROLE_CALL_SCREENING))
+    }
+
+    private fun isCallScreeningRoleAvailable(): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return false
+        return requireContext().getSystemService(RoleManager::class.java)
+            .isRoleAvailable(RoleManager.ROLE_CALL_SCREENING)
+    }
+
+    private fun isCallScreeningRoleGranted(): Boolean {
+        if (!isCallScreeningRoleAvailable()) return false
+        return requireContext().getSystemService(RoleManager::class.java)
+            .isRoleHeld(RoleManager.ROLE_CALL_SCREENING)
     }
 
     private fun requestNotifications() {
@@ -301,6 +412,7 @@ class OverviewFragment : Fragment() {
         Toast.makeText(requireContext(), message, Toast.LENGTH_LONG).show()
 
     companion object {
+        private const val SHIZUKU_PACKAGE = "moe.shizuku.privileged.api"
         private const val REQUEST_NOTIFICATIONS = 201
         private const val REQUEST_SHIZUKU_PERMISSION = 202
     }

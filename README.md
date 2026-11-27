@@ -1,12 +1,13 @@
 # DNDx
 
-A native Android app for a user-controlled Do Not Disturb mode, with call screening and a local list of contact exemptions. Current update: **v1.1.0**.
+A native Android app for a user-controlled Do Not Disturb mode, with call screening and a local list of contact exemptions. Current update: **v1.2.0**.
 
 ## What it does
 
 - Declares Android's **Notification Policy Access** so DNDx appears in the system access list, enables Priority DND, and restores the previous interruption filter when turned off.
 - Can grant DND policy access through a user-approved Shizuku session when Shizuku is installed and running; the normal Android settings flow remains available.
-- Uses the Android **Call Screening** role (Android 10 / API 29+) to reject incoming calls while DNDx is active, except numbers in the app's exemption list.
+- The Overview screen now distinguishes DND silencing from call rejection, reports call-screening readiness, and opens Shizuku or its download page when the service is not running.
+- Uses the Android **Call Screening** role (Android 10 / API 29+) to reject incoming calls while DNDx is active, except numbers in the app's exemption list. DND policy access alone only silences calls; call rejection requires granting the separate call-screening role and enabling call screening in Rules.
 - Lets the user choose exempt phone numbers from Contacts. The list is stored locally in app preferences.
 - Includes links to Android's DND settings so users can adjust system notification exceptions.
 - Uses a Material 3 interface with separate Overview, Rules, and Exemptions pages.
@@ -17,6 +18,7 @@ A native Android app for a user-controlled Do Not Disturb mode, with call screen
 - Android controls which calls and messages bypass Priority DND. Contacts exempted inside DNDx are call-screening exemptions; to have their notifications bypass system DND, configure Android's DND exceptions (often by allowing starred contacts and starring the contacts in the system Contacts app).
 - Samsung does not expose a public API that lets third-party apps duplicate every Bixby Routine behavior. On Samsung and other manufacturers, availability depends on the device's Android version, call-screening role support, and manufacturer call/notification policies. The call-rejection feature requires Android 10 or later.
 - DND policy access and the call-screening role are special user-granted settings, not dangerous runtime permissions. Contacts access is requested only when adding a contact.
+- Shizuku must be installed and its service started before DNDx can request Shizuku permission. Tap the Shizuku access button on Overview and approve DNDx in Shizuku; otherwise use Android's DND policy settings.
 
 ## Build
 

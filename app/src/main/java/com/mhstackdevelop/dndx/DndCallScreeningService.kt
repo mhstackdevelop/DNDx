@@ -25,7 +25,7 @@ class DndCallScreeningService : CallScreeningService() {
             .setDisallowCall(reject)
             .setRejectCall(reject)
             .setSkipCallLog(false)
-            .setSkipNotification(false)
+            .setSkipNotification(reject)
             .build()
         respondToCall(callDetails, response)
     }
