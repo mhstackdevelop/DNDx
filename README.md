@@ -8,6 +8,7 @@ A small native Android starter app for a user-controlled Do Not Disturb mode, wi
 - Uses the Android **Call Screening** role (Android 10 / API 29+) to reject incoming calls while DNDx is active, except numbers in the app's exemption list.
 - Lets the user choose exempt phone numbers from Contacts. The list is stored locally in app preferences.
 - Includes links to Android's DND settings so users can adjust system notification exceptions.
+- Uses a Material 3 interface with separate Overview, Rules, and Exemptions pages.
 
 ## Important platform limits
 

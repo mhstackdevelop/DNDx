@@ -10,6 +10,7 @@ class DndCallScreeningService : CallScreeningService() {
         val incoming = callDetails.callDirection == Call.Details.DIRECTION_INCOMING
         val prefs = getSharedPreferences(MainActivity.PREFS, MODE_PRIVATE)
         val active = prefs.getBoolean(MainActivity.KEY_ACTIVE, false)
+        val screenNonExempt = prefs.getBoolean(MainActivity.KEY_SCREEN_NON_EXEMPT, true)
         val number = callDetails.handle?.schemeSpecificPart
 
         val exempt = number != null && prefs.getStringSet(MainActivity.KEY_EXEMPTIONS, emptySet())
@@ -18,7 +19,8 @@ class DndCallScreeningService : CallScreeningService() {
                 val savedNumber = entry.substringAfter('|', "")
                 savedNumber.isNotBlank() && PhoneNumberUtils.compare(number, savedNumber)
             }
-        val reject = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && incoming && active && !exempt
+        val reject = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
+            incoming && active && screenNonExempt && !exempt
         val response = CallResponse.Builder()
             .setDisallowCall(reject)
             .setRejectCall(reject)

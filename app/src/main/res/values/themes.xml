@@ -1,0 +1,11 @@
+<resources>
+    <style name="Theme.DNDx" parent="Theme.Material3.Light.NoActionBar">
+        <item name="colorPrimary">@color/md_primary</item>
+        <item name="colorOnPrimary">@color/md_on_primary</item>
+        <item name="colorSecondary">@color/md_secondary</item>
+        <item name="colorSurface">@color/md_surface</item>
+        <item name="android:colorBackground">@color/md_surface</item>
+        <item name="android:statusBarColor">@color/md_surface</item>
+        <item name="android:windowLightStatusBar">true</item>
+    </style>
+</resources>
