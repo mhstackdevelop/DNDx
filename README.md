@@ -1,0 +1,27 @@
+# DNDx
+
+A small native Android starter app for a user-controlled Do Not Disturb mode, with an Android call-screening service and a local list of contact exemptions.
+
+## What it does
+
+- Uses Android's **Notification Policy Access** to enable Priority DND and restores the previous interruption filter when turned off.
+- Uses the Android **Call Screening** role (Android 10 / API 29+) to reject incoming calls while DNDx is active, except numbers in the app's exemption list.
+- Lets the user choose exempt phone numbers from Contacts. The list is stored locally in app preferences.
+- Includes links to Android's DND settings so users can adjust system notification exceptions.
+
+## Important platform limits
+
+- A normal third-party app cannot reject an incoming carrier SMS or prevent its delivery. Android DND can silence message notifications; it does not reject the message. DNDx deliberately does not request the default-SMS role or claim otherwise.
+- Android controls which calls and messages bypass Priority DND. Contacts exempted inside DNDx are call-screening exemptions; to have their notifications bypass system DND, configure Android's DND exceptions (often by allowing starred contacts and starring the contacts in the system Contacts app).
+- Samsung does not expose a public API that lets third-party apps duplicate every Bixby Routine behavior. On Samsung and other manufacturers, availability depends on the device's Android version, call-screening role support, and manufacturer call/notification policies. The call-rejection feature requires Android 10 or later.
+- DND policy access and the call-screening role are special user-granted settings, not dangerous runtime permissions. Contacts access is requested only when adding a contact.
+
+## Build
+
+Open this project in Android Studio with JDK 17 and Android Gradle Plugin 8.7.3, or build with Gradle 8.9:
+
+```sh
+gradle assembleDebug
+```
+
+Install `app/build/outputs/apk/debug/app-debug.apk`, launch DNDx, grant the call-screening role and DND policy access, then add exemptions and enable DND.
