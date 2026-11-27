@@ -52,7 +52,8 @@
                     android:textAppearance="?attr/textAppearanceHeadlineSmall"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp" />
+                    android:layout_marginTop="8dp"
+                    android:accessibilityLiveRegion="polite" />
 
                 <TextView
                     android:id="@+id/status_detail"
@@ -60,7 +61,8 @@
                     android:textAppearance="?attr/textAppearanceBodyMedium"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="4dp" />
+                    android:layout_marginTop="4dp"
+                    android:accessibilityLiveRegion="polite" />
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/button_toggle"
@@ -108,7 +110,8 @@
                     android:layout_height="wrap_content"
                     android:layout_marginHorizontal="12dp"
                     android:layout_marginTop="4dp"
-                    android:layout_marginBottom="4dp" />
+                    android:layout_marginBottom="4dp"
+                    android:accessibilityLiveRegion="polite" />
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/button_policy"

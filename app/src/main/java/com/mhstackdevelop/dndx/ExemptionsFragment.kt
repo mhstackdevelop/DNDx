@@ -74,7 +74,10 @@ class ExemptionsFragment : Fragment() {
                 ).orEmpty().toMutableSet()
                 entries.add("$name|$number")
                 prefs.edit().putStringSet(MainActivity.KEY_EXEMPTIONS, entries).apply()
-                view?.let { refresh(it) }
+                view?.let {
+                    refresh(it)
+                    it.announceForAccessibility("$name added to exemptions.")
+                }
             }
         }
     }
@@ -108,6 +111,7 @@ class ExemptionsFragment : Fragment() {
         val context = requireContext()
         val prefs = context.getSharedPreferences(MainActivity.PREFS, 0)
         val list = view.findViewById<LinearLayout>(R.id.exemption_list)
+        list.accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
         list.removeAllViews()
         val entries = prefs.getStringSet(MainActivity.KEY_EXEMPTIONS, emptySet())
             .orEmpty().toList().sorted()
@@ -131,6 +135,8 @@ class ExemptionsFragment : Fragment() {
                 setPadding(8, 8, 8, 8)
                 addView(TextView(context).apply {
                     text = "$name\n$number"
+                    contentDescription = "$name, phone number $number"
+                    importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_YES
                     layoutParams = LinearLayout.LayoutParams(
                         0,
                         ViewGroup.LayoutParams.WRAP_CONTENT,
@@ -139,6 +145,7 @@ class ExemptionsFragment : Fragment() {
                 })
                 addView(MaterialButton(context).apply {
                     text = "Remove"
+                    contentDescription = "Remove $name from exemptions"
                     setOnClickListener {
                         val updated = prefs.getStringSet(
                             MainActivity.KEY_EXEMPTIONS,
@@ -148,7 +155,10 @@ class ExemptionsFragment : Fragment() {
                         prefs.edit()
                             .putStringSet(MainActivity.KEY_EXEMPTIONS, updated)
                             .apply()
-                        view.let { refresh(it) }
+                        view.let {
+                            refresh(it)
+                            it.announceForAccessibility("$name removed from exemptions.")
+                        }
                     }
                 })
             })

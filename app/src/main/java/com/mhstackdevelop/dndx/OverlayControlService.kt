@@ -5,10 +5,12 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.content.Context
 import android.content.Intent
 import android.graphics.Color
 import android.graphics.PixelFormat
 import android.graphics.drawable.GradientDrawable
+import android.view.accessibility.AccessibilityManager
 import android.os.Build
 import android.os.Handler
 import android.os.IBinder
@@ -24,14 +26,20 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
+import androidx.core.view.ViewCompat
 import android.content.pm.ServiceInfo
 
 class OverlayControlService : Service() {
     private val handler = Handler(Looper.getMainLooper())
     private lateinit var windowManager: WindowManager
+    private lateinit var accessibilityManager: AccessibilityManager
     private var overlayView: View? = null
     private var layoutParams: WindowManager.LayoutParams? = null
     private var overlayAdded = false
+    private val touchExplorationListener =
+        AccessibilityManager.TouchExplorationStateChangeListener { enabled ->
+            updateOverlayFocusability(enabled)
+        }
 
     private val refreshOverlay = object : Runnable {
         override fun run() {
@@ -43,6 +51,8 @@ class OverlayControlService : Service() {
     override fun onCreate() {
         super.onCreate()
         windowManager = getSystemService(WindowManager::class.java)
+        accessibilityManager = getSystemService(AccessibilityManager::class.java)
+        accessibilityManager.addTouchExplorationStateChangeListener(touchExplorationListener)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -87,11 +97,13 @@ class OverlayControlService : Service() {
         }
         handler.removeCallbacks(refreshOverlay)
         handler.post(refreshOverlay)
+        updateOverlayFocusability(accessibilityManager.isTouchExplorationEnabled)
         return START_STICKY
     }
 
     override fun onDestroy() {
         handler.removeCallbacks(refreshOverlay)
+        accessibilityManager.removeTouchExplorationStateChangeListener(touchExplorationListener)
         if (overlayAdded) {
             overlayView?.let(windowManager::removeView)
             overlayAdded = false
@@ -103,10 +115,12 @@ class OverlayControlService : Service() {
 
     private fun addOverlay() {
         val density = resources.displayMetrics.density
-        val root = LinearLayout(this).apply {
+        val root = AccessibleOverlayContainer(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(12), dp(8), dp(8), dp(8))
+            contentDescription = "DNDx floating control. Drag to move, or use accessibility actions to reposition."
+            isClickable = true
             background = GradientDrawable().apply {
                 shape = GradientDrawable.RECTANGLE
                 cornerRadius = dp(28).toFloat()
@@ -118,11 +132,12 @@ class OverlayControlService : Service() {
         val status = TextView(this).apply {
             setTextColor(Color.WHITE)
             textSize = 14f
-            contentDescription = "DNDx status"
+            isFocusable = true
+            accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
         }
         val toggle = Button(this).apply {
             textSize = 12f
-            minHeight = dp(40)
+            minHeight = dp(48)
             minWidth = dp(72)
             setOnClickListener {
                 when (DndController.toggle(this@OverlayControlService)) {
@@ -155,7 +170,9 @@ class OverlayControlService : Service() {
             setTextColor(Color.WHITE)
             gravity = Gravity.CENTER
             contentDescription = "Close floating DND control"
-            setPadding(dp(8), 0, dp(4), 0)
+            minWidth = dp(48)
+            minHeight = dp(48)
+            setPadding(dp(8), 0, dp(8), 0)
             setOnClickListener {
                 getSharedPreferences(MainActivity.PREFS, MODE_PRIVATE)
                     .edit()
@@ -167,6 +184,7 @@ class OverlayControlService : Service() {
         root.addView(status)
         root.addView(toggle)
         root.addView(close)
+        addAccessibleMoveActions(root)
         root.setOnTouchListener(DragListener(density))
 
         val params = WindowManager.LayoutParams(
@@ -195,14 +213,72 @@ class OverlayControlService : Service() {
         val toggle = root.getChildAt(1) as Button
         val active = getSharedPreferences(MainActivity.PREFS, MODE_PRIVATE)
             .getBoolean(MainActivity.KEY_ACTIVE, false)
-        status.text = if (active) " DNDx · ON " else " DNDx · OFF "
+        val statusText = if (active) "DNDx · ON" else "DNDx · OFF"
+        if (status.text != statusText) status.text = statusText
+        val statusDescription = if (active) {
+            "DNDx status: Do Not Disturb is on."
+        } else {
+            "DNDx status: Do Not Disturb is off."
+        }
+        if (status.contentDescription != statusDescription) {
+            status.contentDescription = statusDescription
+        }
         val policyGranted = getSystemService(NotificationManager::class.java)
             .isNotificationPolicyAccessGranted
-        toggle.text = when {
+        val buttonText = when {
             !policyGranted -> "Grant access"
             active -> "Turn off"
             else -> "Turn on"
         }
+        if (toggle.text != buttonText) toggle.text = buttonText
+        val buttonDescription = when {
+            !policyGranted -> "Open DNDx to grant Do Not Disturb access"
+            active -> "Turn off Do Not Disturb"
+            else -> "Turn on Do Not Disturb"
+        }
+        if (toggle.contentDescription != buttonDescription) {
+            toggle.contentDescription = buttonDescription
+        }
+    }
+
+    private fun updateOverlayFocusability(touchExplorationEnabled: Boolean) {
+        val root = overlayView ?: return
+        val params = layoutParams ?: return
+        val focusFlag = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+        val updatedFlags = if (touchExplorationEnabled) {
+            params.flags and focusFlag.inv()
+        } else {
+            params.flags or focusFlag
+        }
+        if (updatedFlags != params.flags) {
+            params.flags = updatedFlags
+            windowManager.updateViewLayout(root, params)
+        }
+    }
+
+    private fun addAccessibleMoveActions(root: View) {
+        ViewCompat.setAccessibilityPaneTitle(root, "DNDx floating controls")
+        ViewCompat.addAccessibilityAction(root, "Move floating control to the left edge") { _, _ ->
+            moveOverlay(Gravity.TOP or Gravity.START, dp(16), dp(120))
+            true
+        }
+        ViewCompat.addAccessibilityAction(root, "Move floating control to the right edge") { _, _ ->
+            moveOverlay(Gravity.TOP or Gravity.END, dp(16), dp(120))
+            true
+        }
+        ViewCompat.addAccessibilityAction(root, "Move floating control to the bottom right") { _, _ ->
+            moveOverlay(Gravity.BOTTOM or Gravity.END, dp(16), dp(16))
+            true
+        }
+    }
+
+    private fun moveOverlay(gravity: Int, x: Int, y: Int) {
+        val root = overlayView ?: return
+        val params = layoutParams ?: return
+        params.gravity = gravity
+        params.x = x
+        params.y = y
+        windowManager.updateViewLayout(root, params)
     }
 
     private fun createNotificationChannel() {
@@ -285,9 +361,20 @@ class OverlayControlService : Service() {
                     windowManager.updateViewLayout(view, params)
                     return true
                 }
-                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> return moved
+                MotionEvent.ACTION_UP -> {
+                    if (!moved) view.performClick()
+                    return true
+                }
+                MotionEvent.ACTION_CANCEL -> return moved
             }
             return false
+        }
+    }
+
+    private class AccessibleOverlayContainer(context: Context) : LinearLayout(context) {
+        override fun performClick(): Boolean {
+            super.performClick()
+            return true
         }
     }
 

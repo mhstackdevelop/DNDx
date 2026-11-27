@@ -19,6 +19,8 @@ class RulesFragment : Fragment() {
         val prefs = requireContext().getSharedPreferences(MainActivity.PREFS, 0)
 
         view.findViewById<MaterialSwitch>(R.id.switch_screen_calls).apply {
+            contentDescription =
+                "$text. Reject incoming calls that are not in your exemption list while DNDx is active."
             isChecked = prefs.getBoolean(MainActivity.KEY_SCREEN_NON_EXEMPT, true)
             setOnCheckedChangeListener { _, checked ->
                 prefs.edit().putBoolean(MainActivity.KEY_SCREEN_NON_EXEMPT, checked).apply()
@@ -26,6 +28,8 @@ class RulesFragment : Fragment() {
         }
 
         view.findViewById<MaterialSwitch>(R.id.switch_restore_boot).apply {
+            contentDescription =
+                "$text. Restore Priority DND after restart if DNDx was active."
             isChecked = prefs.getBoolean(MainActivity.KEY_RESTORE_ON_BOOT, true)
             setOnCheckedChangeListener { _, checked ->
                 prefs.edit().putBoolean(MainActivity.KEY_RESTORE_ON_BOOT, checked).apply()
