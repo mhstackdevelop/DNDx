@@ -1,10 +1,11 @@
 package com.mhstackdevelop.dndx
 
 import android.Manifest
+import android.app.admin.DevicePolicyManager
 import android.app.NotificationManager
 import android.app.role.RoleManager
-import android.content.Intent
 import android.content.ComponentName
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.ServiceConnection
 import android.net.Uri
@@ -20,8 +21,9 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.fragment.app.Fragment
 import androidx.activity.result.contract.ActivityResultContracts
-import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import androidx.core.content.ContextCompat
 import com.google.android.material.button.MaterialButton
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import rikka.shizuku.Shizuku
 
 class OverviewFragment : Fragment() {
@@ -78,6 +80,15 @@ class OverviewFragment : Fragment() {
         view.findViewById<MaterialButton>(R.id.button_battery).setOnClickListener {
             openBatterySettings()
         }
+        view.findViewById<MaterialButton>(R.id.button_device_admin).setOnClickListener {
+            handleDeviceAdminAction()
+        }
+        view.findViewById<MaterialButton>(R.id.button_remove_admin).setOnClickListener {
+            confirmRemoveDeviceAdmin()
+        }
+        view.findViewById<MaterialButton>(R.id.button_overlay).setOnClickListener {
+            toggleOverlay()
+        }
         refresh(view)
         Shizuku.addRequestPermissionResultListener(shizukuPermissionListener)
     }
@@ -109,6 +120,7 @@ class OverviewFragment : Fragment() {
 
     override fun onResume() {
         super.onResume()
+        completeOverlayPermissionFlow()
         view?.let { refresh(it) }
     }
 
@@ -125,6 +137,10 @@ class OverviewFragment : Fragment() {
         val notificationsGranted = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
             context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) ==
             PackageManager.PERMISSION_GRANTED
+        val devicePolicyManager = context.getSystemService(DevicePolicyManager::class.java)
+        val adminActive = devicePolicyManager.isAdminActive(deviceAdminComponent())
+        val overlayAllowed = Settings.canDrawOverlays(context)
+        val overlayEnabled = prefs.getBoolean(MainActivity.KEY_OVERLAY_ENABLED, false)
 
         view.findViewById<TextView>(R.id.status_text).text =
             if (active) "DNDx is ON" else "DNDx is OFF"
@@ -170,48 +186,129 @@ class OverviewFragment : Fragment() {
         }
         view.findViewById<MaterialButton>(R.id.button_notifications).text =
             if (notificationsGranted) "Notifications: Granted" else "Enable notifications"
+        view.findViewById<MaterialButton>(R.id.button_device_admin).text =
+            if (adminActive) "Lock screen now" else "Enable Device Admin"
+        view.findViewById<MaterialButton>(R.id.button_remove_admin).visibility =
+            if (adminActive) View.VISIBLE else View.GONE
+        view.findViewById<MaterialButton>(R.id.button_overlay).text = when {
+            overlayEnabled && overlayAllowed -> "Disable floating DND control"
+            overlayEnabled -> "Grant overlay access to restore control"
+            overlayAllowed -> "Enable floating DND control"
+            else -> "Allow display over other apps"
+        }
     }
 
     private fun toggleDnd() {
-        val context = requireContext()
-        val prefs = context.getSharedPreferences(MainActivity.PREFS, 0)
-        val notificationManager = context.getSystemService(NotificationManager::class.java)
-
-        if (prefs.getBoolean(MainActivity.KEY_ACTIVE, false)) {
-            if (notificationManager.isNotificationPolicyAccessGranted) {
-                val previous = prefs.getInt(
-                    MainActivity.KEY_PREVIOUS_FILTER,
-                    NotificationManager.INTERRUPTION_FILTER_ALL
-                )
-                try {
-                    notificationManager.setInterruptionFilter(previous)
-                } catch (_: SecurityException) {
-                    toast("Android denied access to change DND settings.")
-                    return
-                }
-            }
-            prefs.edit().putBoolean(MainActivity.KEY_ACTIVE, false).apply()
-        } else {
-            if (!notificationManager.isNotificationPolicyAccessGranted) {
+        when (DndController.toggle(requireContext())) {
+            DndController.ToggleResult.ENABLED,
+            DndController.ToggleResult.DISABLED -> Unit
+            DndController.ToggleResult.POLICY_ACCESS_REQUIRED -> {
                 startActivity(Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS))
                 toast("Grant DND policy access, then try again.")
-                return
             }
-            try {
-                val previous = notificationManager.currentInterruptionFilter
-                notificationManager.setInterruptionFilter(
-                    NotificationManager.INTERRUPTION_FILTER_PRIORITY
-                )
-                prefs.edit()
-                    .putInt(MainActivity.KEY_PREVIOUS_FILTER, previous)
-                    .putBoolean(MainActivity.KEY_ACTIVE, true)
-                    .apply()
-            } catch (_: SecurityException) {
+            DndController.ToggleResult.ACCESS_DENIED ->
                 toast("Android denied access to change DND settings.")
-                return
-            }
         }
         view?.let { refresh(it) }
+    }
+
+    private fun handleDeviceAdminAction() {
+        val context = requireContext()
+        val manager = context.getSystemService(DevicePolicyManager::class.java)
+        val component = deviceAdminComponent()
+        if (manager.isAdminActive(component)) {
+            try {
+                manager.lockNow()
+            } catch (_: SecurityException) {
+                toast("Android denied the screen-lock request.")
+            }
+            return
+        }
+
+        val request = Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN).apply {
+            putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, component)
+            putExtra(
+                DevicePolicyManager.EXTRA_ADD_EXPLANATION,
+                getString(R.string.device_admin_description)
+            )
+        }
+        startActivity(request)
+    }
+
+    private fun confirmRemoveDeviceAdmin() {
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle("Remove Device Admin?")
+            .setMessage("DNDx will no longer be able to lock the screen.")
+            .setNegativeButton("Keep enabled", null)
+            .setPositiveButton("Remove") { _, _ ->
+                requireContext().getSystemService(DevicePolicyManager::class.java)
+                    .removeActiveAdmin(deviceAdminComponent())
+                view?.let { refresh(it) }
+            }
+            .show()
+    }
+
+    private fun deviceAdminComponent() =
+        ComponentName(requireContext(), DndDeviceAdminReceiver::class.java)
+
+    private fun toggleOverlay() {
+        val context = requireContext()
+        val prefs = context.getSharedPreferences(MainActivity.PREFS, 0)
+        if (!Settings.canDrawOverlays(context)) {
+            prefs.edit().putBoolean(MainActivity.KEY_OVERLAY_PENDING, true).apply()
+            startActivity(
+                Intent(
+                    Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                    Uri.parse("package:${context.packageName}")
+                )
+            )
+            return
+        }
+
+        prefs.edit().putBoolean(MainActivity.KEY_OVERLAY_PENDING, false).apply()
+        val enabled = prefs.getBoolean(MainActivity.KEY_OVERLAY_ENABLED, false)
+        if (enabled) {
+            prefs.edit().putBoolean(MainActivity.KEY_OVERLAY_ENABLED, false).apply()
+            context.stopService(Intent(context, OverlayControlService::class.java))
+            toast("Floating DND control turned off.")
+        } else {
+            prefs.edit().putBoolean(MainActivity.KEY_OVERLAY_ENABLED, true).apply()
+            startOverlayService()
+            toast("Floating DND control is on. Drag it to move.")
+        }
+        view?.let { refresh(it) }
+    }
+
+    private fun completeOverlayPermissionFlow() {
+        val context = context ?: return
+        val prefs = context.getSharedPreferences(MainActivity.PREFS, 0)
+        val pending = prefs.getBoolean(MainActivity.KEY_OVERLAY_PENDING, false)
+        val enabled = prefs.getBoolean(MainActivity.KEY_OVERLAY_ENABLED, false)
+        val allowed = Settings.canDrawOverlays(context)
+
+        if (pending) {
+            prefs.edit().putBoolean(MainActivity.KEY_OVERLAY_PENDING, false).apply()
+            if (allowed) {
+                prefs.edit().putBoolean(MainActivity.KEY_OVERLAY_ENABLED, true).apply()
+                startOverlayService()
+                toast("Floating DND control enabled.")
+            } else {
+                toast("Display-over-other-apps access was not granted.")
+            }
+        } else if (enabled && allowed) {
+            startOverlayService()
+        } else if (enabled) {
+            prefs.edit().putBoolean(MainActivity.KEY_OVERLAY_ENABLED, false).apply()
+            context.stopService(Intent(context, OverlayControlService::class.java))
+        }
+    }
+
+    private fun startOverlayService() {
+        val context = requireContext()
+        ContextCompat.startForegroundService(
+            context,
+            Intent(context, OverlayControlService::class.java)
+        )
     }
 
     private fun confirmShizukuGrant() {
@@ -349,24 +446,30 @@ class OverviewFragment : Fragment() {
     }
 
     private fun requestCallRole() {
-        if (!isCallScreeningRoleAvailable()) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
             toast("Call rejection requires Android 10 or later and device support.")
             return
         }
         val roleManager = requireContext().getSystemService(RoleManager::class.java)
-        callRoleLauncher.launch(roleManager.createRequestRoleIntent(RoleManager.ROLE_CALL_SCREENING))
+        if (roleManager.isRoleAvailable(RoleManager.ROLE_CALL_SCREENING)) {
+            callRoleLauncher.launch(
+                roleManager.createRequestRoleIntent(RoleManager.ROLE_CALL_SCREENING)
+            )
+        } else {
+            toast("Call-screening is unavailable on this device.")
+        }
     }
 
     private fun isCallScreeningRoleAvailable(): Boolean {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return false
-        return requireContext().getSystemService(RoleManager::class.java)
-            .isRoleAvailable(RoleManager.ROLE_CALL_SCREENING)
+        return Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
+            requireContext().getSystemService(RoleManager::class.java)
+                .isRoleAvailable(RoleManager.ROLE_CALL_SCREENING)
     }
 
     private fun isCallScreeningRoleGranted(): Boolean {
-        if (!isCallScreeningRoleAvailable()) return false
-        return requireContext().getSystemService(RoleManager::class.java)
-            .isRoleHeld(RoleManager.ROLE_CALL_SCREENING)
+        return Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
+            requireContext().getSystemService(RoleManager::class.java)
+                .isRoleHeld(RoleManager.ROLE_CALL_SCREENING)
     }
 
     private fun requestNotifications() {

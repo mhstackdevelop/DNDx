@@ -1,12 +1,14 @@
 # DNDx
 
-A native Android app for a user-controlled Do Not Disturb mode, with call screening and a local list of contact exemptions. Current update: **v1.2.0**.
+A native Android app for a user-controlled Do Not Disturb mode, with call screening and a local list of contact exemptions. Current update: **v1.3.0**.
 
 ## What it does
 
 - Declares Android's **Notification Policy Access** so DNDx appears in the system access list, enables Priority DND, and restores the previous interruption filter when turned off.
 - Can grant DND policy access through a user-approved Shizuku session when Shizuku is installed and running; the normal Android settings flow remains available.
 - The Overview screen now distinguishes DND silencing from call rejection, reports call-screening readiness, and opens Shizuku or its download page when the service is not running.
+- Optional Device Admin lets the user lock the screen on demand; the app requests only the force-lock policy and never requests device wipe.
+- Optional display-over-other-apps access enables a draggable floating DND control, backed by an ongoing foreground-service notification.
 - Uses the Android **Call Screening** role (Android 10 / API 29+) to reject incoming calls while DNDx is active, except numbers in the app's exemption list. DND policy access alone only silences calls; call rejection requires granting the separate call-screening role and enabling call screening in Rules.
 - Lets the user choose exempt phone numbers from Contacts. The list is stored locally in app preferences.
 - Includes links to Android's DND settings so users can adjust system notification exceptions.

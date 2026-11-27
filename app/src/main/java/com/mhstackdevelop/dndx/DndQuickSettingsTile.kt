@@ -1,6 +1,8 @@
 package com.mhstackdevelop.dndx
 
 import android.app.NotificationManager
+import android.app.PendingIntent
+import android.annotation.SuppressLint
 import android.content.Intent
 import android.os.Build
 import android.service.quicksettings.Tile
@@ -14,7 +16,6 @@ class DndQuickSettingsTile : TileService() {
 
     override fun onClick() {
         super.onClick()
-        val prefs = getSharedPreferences(MainActivity.PREFS, MODE_PRIVATE)
         val notificationManager = getSystemService(NotificationManager::class.java)
 
         if (!notificationManager.isNotificationPolicyAccessGranted) {
@@ -22,30 +23,11 @@ class DndQuickSettingsTile : TileService() {
             return
         }
 
-        val active = prefs.getBoolean(MainActivity.KEY_ACTIVE, false)
-        if (active) {
-            val previous = prefs.getInt(
-                MainActivity.KEY_PREVIOUS_FILTER,
-                NotificationManager.INTERRUPTION_FILTER_ALL
-            )
-            try {
-                notificationManager.setInterruptionFilter(previous)
-            } catch (_: SecurityException) {
-                openApp()
-                return
-            }
-            prefs.edit().putBoolean(MainActivity.KEY_ACTIVE, false).apply()
-        } else {
-            try {
-                val previous = notificationManager.currentInterruptionFilter
-                notificationManager.setInterruptionFilter(
-                    NotificationManager.INTERRUPTION_FILTER_PRIORITY
-                )
-                prefs.edit()
-                    .putInt(MainActivity.KEY_PREVIOUS_FILTER, previous)
-                    .putBoolean(MainActivity.KEY_ACTIVE, true)
-                    .apply()
-            } catch (_: SecurityException) {
+        when (DndController.toggle(this)) {
+            DndController.ToggleResult.ENABLED,
+            DndController.ToggleResult.DISABLED -> Unit
+            DndController.ToggleResult.POLICY_ACCESS_REQUIRED,
+            DndController.ToggleResult.ACCESS_DENIED -> {
                 openApp()
                 return
             }
@@ -65,7 +47,19 @@ class DndQuickSettingsTile : TileService() {
         tile.updateTile()
     }
 
+    @SuppressLint("StartActivityAndCollapseDeprecated")
     private fun openApp() {
-        startActivityAndCollapse(Intent(this, MainActivity::class.java))
+        val intent = Intent(this, MainActivity::class.java)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            val pendingIntent = PendingIntent.getActivity(
+                this,
+                0,
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            startActivityAndCollapse(pendingIntent)
+        } else {
+            startActivityAndCollapse(intent)
+        }
     }
 }

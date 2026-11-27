@@ -134,6 +134,47 @@
                     android:layout_marginTop="8dp"
                     android:text="Grant DND access with Shizuku" />
 
+                <TextView
+                    android:text="Optional tools"
+                    android:textAppearance="?attr/textAppearanceTitleSmall"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginHorizontal="12dp"
+                    android:layout_marginTop="18dp"
+                    android:layout_marginBottom="4dp" />
+
+                <TextView
+                    android:text="Device Admin is only used for the lock-screen button. The floating control needs Android's display-over-other-apps access."
+                    android:textAppearance="?attr/textAppearanceBodySmall"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginHorizontal="12dp"
+                    android:layout_marginBottom="4dp" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/button_device_admin"
+                    style="@style/Widget.Material3.Button.TonalButton"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="Enable Device Admin" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/button_remove_admin"
+                    style="@style/Widget.Material3.Button.TextButton"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:visibility="gone"
+                    android:text="Remove Device Admin" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/button_overlay"
+                    style="@style/Widget.Material3.Button.TonalButton"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="Allow display over other apps" />
+
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/button_notifications"
                     style="@style/Widget.Material3.Button.TonalButton"

@@ -37,5 +37,7 @@ class MainActivity : AppCompatActivity() {
         const val KEY_EXEMPTIONS = "exemptions"
         const val KEY_SCREEN_NON_EXEMPT = "screen_non_exempt"
         const val KEY_RESTORE_ON_BOOT = "restore_on_boot"
+        const val KEY_OVERLAY_ENABLED = "overlay_enabled"
+        const val KEY_OVERLAY_PENDING = "overlay_pending"
     }
 }

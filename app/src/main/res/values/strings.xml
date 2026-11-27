@@ -1,0 +1,3 @@
+<resources>
+    <string name="device_admin_description">DNDx uses Device Admin only to lock the screen when you explicitly tap Lock screen. It does not wipe or manage your device.</string>
+</resources>
