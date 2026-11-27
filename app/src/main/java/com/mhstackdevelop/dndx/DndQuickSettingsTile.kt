@@ -1,7 +1,6 @@
 package com.mhstackdevelop.dndx
 
 import android.app.NotificationManager
-import android.app.role.RoleManager
 import android.content.Intent
 import android.os.Build
 import android.service.quicksettings.Tile
@@ -15,18 +14,10 @@ class DndQuickSettingsTile : TileService() {
 
     override fun onClick() {
         super.onClick()
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
-            openApp()
-            return
-        }
-
         val prefs = getSharedPreferences(MainActivity.PREFS, MODE_PRIVATE)
         val notificationManager = getSystemService(NotificationManager::class.java)
-        val roleManager = getSystemService(RoleManager::class.java)
 
-        if (!notificationManager.isNotificationPolicyAccessGranted ||
-            !roleManager.isRoleHeld(RoleManager.ROLE_CALL_SCREENING)
-        ) {
+        if (!notificationManager.isNotificationPolicyAccessGranted) {
             openApp()
             return
         }
@@ -37,19 +28,27 @@ class DndQuickSettingsTile : TileService() {
                 MainActivity.KEY_PREVIOUS_FILTER,
                 NotificationManager.INTERRUPTION_FILTER_ALL
             )
-            notificationManager.setInterruptionFilter(previous)
+            try {
+                notificationManager.setInterruptionFilter(previous)
+            } catch (_: SecurityException) {
+                openApp()
+                return
+            }
             prefs.edit().putBoolean(MainActivity.KEY_ACTIVE, false).apply()
         } else {
-            prefs.edit()
-                .putInt(
-                    MainActivity.KEY_PREVIOUS_FILTER,
-                    notificationManager.currentInterruptionFilter
+            try {
+                val previous = notificationManager.currentInterruptionFilter
+                notificationManager.setInterruptionFilter(
+                    NotificationManager.INTERRUPTION_FILTER_PRIORITY
                 )
-                .putBoolean(MainActivity.KEY_ACTIVE, true)
-                .apply()
-            notificationManager.setInterruptionFilter(
-                NotificationManager.INTERRUPTION_FILTER_PRIORITY
-            )
+                prefs.edit()
+                    .putInt(MainActivity.KEY_PREVIOUS_FILTER, previous)
+                    .putBoolean(MainActivity.KEY_ACTIVE, true)
+                    .apply()
+            } catch (_: SecurityException) {
+                openApp()
+                return
+            }
         }
         updateTile()
     }

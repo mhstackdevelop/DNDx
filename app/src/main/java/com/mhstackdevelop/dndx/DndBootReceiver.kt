@@ -4,8 +4,6 @@ import android.app.NotificationManager
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.app.role.RoleManager
-import android.os.Build
 
 class DndBootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
@@ -23,14 +21,6 @@ class DndBootReceiver : BroadcastReceiver() {
         val notificationManager =
             context.getSystemService(NotificationManager::class.java) ?: return
         if (!notificationManager.isNotificationPolicyAccessGranted) return
-
-        val roleManager =
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                context.getSystemService(RoleManager::class.java)
-            } else null
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
-            (roleManager == null || !roleManager.isRoleHeld(RoleManager.ROLE_CALL_SCREENING))
-        ) return
 
         notificationManager.setInterruptionFilter(
             NotificationManager.INTERRUPTION_FILTER_PRIORITY

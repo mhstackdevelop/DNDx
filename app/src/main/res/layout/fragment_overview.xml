@@ -12,8 +12,15 @@
         android:padding="20dp">
 
         <TextView
-            android:text="Overview"
+            android:text="DNDx"
             android:textAppearance="?attr/textAppearanceHeadlineMedium"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="2dp" />
+
+        <TextView
+            android:text="Your quiet, your rules."
+            android:textAppearance="?attr/textAppearanceBodyLarge"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginBottom="16dp" />
@@ -41,11 +48,19 @@
 
                 <TextView
                     android:id="@+id/status_text"
-                    android:text="Checking..."
+                    android:text="Checking status…"
                     android:textAppearance="?attr/textAppearanceHeadlineSmall"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp" />
+
+                <TextView
+                    android:id="@+id/status_detail"
+                    android:text="Your notification settings are ready to check."
+                    android:textAppearance="?attr/textAppearanceBodyMedium"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp" />
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/button_toggle"
@@ -92,6 +107,22 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
                     android:text="DND policy access" />
+
+                <TextView
+                    android:text="Grant access here, or use Shizuku if it is running."
+                    android:textAppearance="?attr/textAppearanceBodySmall"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginHorizontal="12dp"
+                    android:layout_marginTop="4dp" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/button_shizuku"
+                    style="@style/Widget.Material3.Button.TonalButton"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="Grant DND access with Shizuku" />
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/button_notifications"
